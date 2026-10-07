@@ -1,0 +1,160 @@
+# Example configurations for the new RSS sorting algorithms
+# This file demonstrates all four sorting strategies
+
+# Example 1: Chronological sorting (default)
+# This is the existing behavior - newest items first
+pages:
+  - name: Chronological Example
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Tech News (Chronological)
+            sort: chronological # Explicit chronological sort (same as default)
+            limit: 15
+            feeds:
+              - url: https://selfh.st/rss/
+                title: selfh.st
+              - url: https://ciechanow.ski/atom.xml
+              - url: https://www.joshwcomeau.com/rss.xml
+
+# Example 2: Rarity sorting (Zach Manson's Frequency-Weighted Algorithm)
+# Infrequent feeds are boosted, hyper-posting news sites are penalized
+pages:
+  - name: Rarity Example
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Curated Content (Rarity)
+            sort: rarity
+            limit: 15
+            cache: 1h # More frequent updates help the algorithm learn posting patterns
+            feeds:
+              - url: https://selfh.st/rss/
+                title: selfh.st
+              - url: https://ciechanow.ski/atom.xml
+              - url: https://www.joshwcomeau.com/rss.xml
+              - url: https://dev.to/feed # High-volume feed - will be penalized
+              - url: https://xkcd.com/rss.xml # Low-frequency feed - will be boosted
+
+# Example 2b: Rarity sorting with custom configuration
+# Fine-tune the algorithm for your specific feed mix
+pages:
+  - name: Custom Rarity Example
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Aggressively Boosted Content (Custom Rarity)
+            sort: rarity
+            rarity-base: 144        # More aggressive boosting than default 72
+            rarity-exponent: 3.0   # More extreme weighting than default 2.5
+            limit: 15
+            cache: 1h
+            feeds:
+              - url: https://rare-blog.com/rss
+              - url: https://important-news.com/rss
+
+# Example 3: Tier sorting (Source Priority Tiering)
+# Items are sorted by source tier first, then chronologically within each tier
+pages:
+  - name: Tier Example
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Priority Content (Tier-based)
+            sort: tier
+            limit: 20
+            feeds:
+              # Tier 1 - Most important sources (will appear first)
+              - url: https://selfh.st/rss/
+                title: selfh.st
+                tier: 1
+              - url: https://ciechanow.ski/atom.xml
+                tier: 1
+                
+              # Tier 2 - Secondary sources
+              - url: https://www.joshwcomeau.com/rss.xml
+                title: Josh Comeau
+                tier: 2
+              - url: https://ishadeed.com/feed.xml
+                title: Ahmad Shadeed
+                tier: 2
+                
+              # No tier specified - will be treated as lower priority
+              - url: https://dev.to/feed
+                title: Dev.to
+
+# Example 4: Serendipity sorting (Randomized Discovery Injection)
+# Periodically injects older items to break up echo chambers
+pages:
+  - name: Serendipity Example
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Discovery Mode (Serendipity)
+            sort: serendipity
+            limit: 15
+            feeds:
+              - url: https://selfh.st/rss/
+                title: selfh.st
+              - url: https://ciechanow.ski/atom.xml
+              - url: https://www.joshwcomeau.com/rss.xml
+              - url: https://dev.to/feed
+
+# Example 5: Mixed - Different widgets with different sorting strategies
+pages:
+  - name: Mixed Sorting Demo
+    columns:
+      - size: small
+        widgets:
+          - type: rss
+            title: Important Sources (Tier)
+            sort: tier
+            limit: 10
+            feeds:
+              - url: https://selfh.st/rss/
+                title: selfh.st
+                tier: 1
+              - url: https://www.joshwcomeau.com/rss.xml
+                title: Josh Comeau
+                tier: 2
+                
+      - size: full
+        widgets:
+          - type: rss
+            title: Rare Gems (Rarity)
+            sort: rarity
+            limit: 15
+            feeds:
+              - url: https://selfh.st/rss/
+              - url: https://ciechanow.ski/atom.xml
+              - url: https://xkcd.com/rss.xml
+              - url: https://dev.to/feed
+              
+      - size: small
+        widgets:
+          - type: rss
+            title: Discovery (Serendipity)
+            sort: serendipity
+            limit: 10
+            feeds:
+              - url: https://dev.to/feed
+              - url: https://medium.com/feed/@yourhandle
+
+# Example 6: Backwards compatibility - no sort specified (falls back to chronological)
+pages:
+  - name: Backwards Compatibility
+    columns:
+      - size: full
+        widgets:
+          - type: rss
+            title: Legacy Config (Default Chronological)
+            # No sort field specified - will use chronological by default
+            limit: 10
+            feeds:
+              - url: https://selfh.st/rss/
+              - url: https://ciechanow.ski/atom.xml

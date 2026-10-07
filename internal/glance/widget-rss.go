@@ -38,12 +38,19 @@ type rssWidget struct {
 	CollapseAfter    int              `yaml:"collapse-after"`
 	SingleLineTitles bool             `yaml:"single-line-titles"`
 	PreserveOrder    bool             `yaml:"preserve-order"`
+	Sort             string           `yaml:"sort"`
+	RarityBase       float64          `yaml:"rarity-base"`
+	RarityExponent   float64          `yaml:"rarity-exponent"`
 
 	Items          rssFeedItemList `yaml:"-"`
 	NoItemsMessage string          `yaml:"-"`
 
 	cachedFeedsMutex sync.Mutex
 	cachedFeeds      map[string]*cachedRSSFeed `yaml:"-"`
+	
+	// Sorting state
+	sortManager   *rssSortManager `yaml:"-"`
+	feedTierMap   map[string]int  `yaml:"-"`
 }
 
 func (widget *rssWidget) initialize() error {
@@ -71,21 +78,45 @@ func (widget *rssWidget) initialize() error {
 		}
 	}
 
+	// Initialize sorting state
 	widget.NoItemsMessage = "No items were returned from the feeds."
 	widget.cachedFeeds = make(map[string]*cachedRSSFeed)
+	
+	// Build feed tier map from feed requests
+	widget.feedTierMap = make(map[string]int)
+	for _, feed := range widget.FeedRequests {
+		if feed.Tier != 0 {
+			widget.feedTierMap[feed.URL] = feed.Tier
+		}
+	}
+
+	// Initialize sort manager for all RSS widgets to support stateful sorting algorithms
+	widget.sortManager = newRSSSortManager("data")
+	if err := widget.sortManager.initialize(); err != nil {
+		// Log error but don't fail initialization - sorting will fall back to chronological
+		slog.Error("Failed to initialize RSS sort manager", "error", err)
+	}
 
 	return nil
 }
 
 func (widget *rssWidget) update(ctx context.Context) {
-	items, err := widget.fetchItemsFromFeeds()
+	items, err := widget.fetchItemsFromFeeds(ctx)
 
 	if !widget.canContinueUpdateAfterHandlingErr(err) {
 		return
 	}
 
 	if !widget.PreserveOrder {
-		items.sortByNewest()
+		// Apply sorting based on the configured algorithm
+		config := DefaultRSSSortConfig()
+		if widget.RarityBase != 0 {
+			config.RarityBase = widget.RarityBase
+		}
+		if widget.RarityExponent != 0 {
+			config.RarityExponent = widget.RarityExponent
+		}
+		items = SortRSSItems(items, RSSSortAlgorithm(widget.Sort), widget.sortManager, widget.feedTierMap, config)
 	}
 
 	if len(items) > widget.Limit {
@@ -93,6 +124,19 @@ func (widget *rssWidget) update(ctx context.Context) {
 	}
 
 	widget.Items = items
+	
+	// Record timestamps for rarity sorting
+	if widget.sortManager != nil && widget.sortManager.initialized {
+		for _, item := range items {
+			widget.sortManager.recordFeedTimestamp(item.ChannelURL, item.PublishedAt)
+		}
+		// Persist the updated history
+		go func() {
+			if err := widget.sortManager.save(); err != nil {
+				slog.Error("Failed to save RSS sort manager state", "error", err)
+			}
+		}()
+	}
 }
 
 func (widget *rssWidget) Render() template.HTML {
@@ -137,6 +181,7 @@ type rssFeedRequest struct {
 	ItemLinkPrefix      string            `yaml:"item-link-prefix"`
 	ThumbnailLinkPrefix string            `yaml:"thumbnail-link-prefix"`
 	Headers             map[string]string `yaml:"headers"`
+	Tier                int               `yaml:"tier"`
 	IsDetailed          bool              `yaml:"-"`
 }
 
@@ -150,7 +195,7 @@ func (f rssFeedItemList) sortByNewest() rssFeedItemList {
 	return f
 }
 
-func (widget *rssWidget) fetchItemsFromFeeds() (rssFeedItemList, error) {
+func (widget *rssWidget) fetchItemsFromFeeds(ctx context.Context) (rssFeedItemList, error) {
 	requests := widget.FeedRequests
 
 	job := newJob(widget.fetchItemsFromFeedTask, requests).withWorkers(30)
