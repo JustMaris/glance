@@ -1,4 +1,4 @@
-project_name: ghcr.io/justmaris/glance
+project_name: ghcr.io/justmaris/glance-fork
 
 checksum:
   disable: true
