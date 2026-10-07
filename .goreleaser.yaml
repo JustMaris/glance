@@ -1,4 +1,4 @@
-project_name: glanceapp/glance
+project_name: ghcr.io/justmaris/glance
 
 checksum:
   disable: true
